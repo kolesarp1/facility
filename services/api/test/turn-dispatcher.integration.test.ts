@@ -113,6 +113,7 @@ environment:
     readonly name = "codex" as const;
     requests: AgentTurnRequest[] = [];
     outputOverride?: string;
+    progressOverride: string[] = [];
     renameNextBranch?: string;
     corruptResumeOnce = false;
     replacementPending = false;
@@ -173,7 +174,7 @@ environment:
       return {
         nativeSessionId,
         output: this.outputOverride ?? `completed with ${secret} and ${projectSecret}`,
-        progress: [],
+        progress: this.progressOverride,
         events: [
           {
             engine: "codex",
@@ -380,6 +381,114 @@ environment:
     expect(
       await runtime.read(firstRequest.workspace, `repos/${owner}/${repository}/agent-work`),
     ).toBe("turn-1turn-2");
+  });
+
+  it("retains scoped, redacted acceptance observations from final output without changing completion", async () => {
+    const report = {
+      schemaVersion: 1,
+      criteria: [
+        {
+          id: "AC1",
+          criterion: "Bookmarks persist after refresh.",
+          status: "met",
+          evidence: "Refreshed with project-secret; bookmark remained.",
+        },
+        {
+          id: "AC2",
+          criterion: "Save is keyboard accessible.",
+          status: "unmet",
+          evidence: "Tab never reaches Save.",
+        },
+      ],
+    };
+    const wrap = (value: unknown) =>
+      `<facility-acceptance-review>${JSON.stringify(value)}</facility-acceptance-review>`;
+    try {
+      for (const [index, output, expectedType] of [
+        [1, wrap(report), "acceptance.review_reported"],
+        [2, wrap({ ...report, orgId: "forged-org" }), "acceptance.review_invalid"],
+        [3, "Review complete without structured final output.", null],
+      ] as const) {
+        engine.outputOverride = output;
+        engine.progressOverride = [wrap(report)];
+        const started = await storiesService.start({
+          orgId,
+          projectId,
+          provider: "github",
+          externalId: `acceptance-${index}-${suffix}`,
+          title: "Review bookmark acceptance",
+          agent: builder,
+          message: "AC1: Bookmarks persist after refresh. AC2: Save is keyboard accessible.",
+          messageDedupeKey: `acceptance-${index}-${suffix}`,
+          actor: { type: "user", id: "user_test" },
+          workspace: { image: "facility-runner:test", ports: [{ service: "app", port: 3000 }] },
+        });
+        const turn = started.queued.turn;
+        if (!turn) throw new Error("expected queued turn");
+        expect(await dispatcher.dispatch({ orgId, projectId, turnId: turn.id })).toMatchObject({
+          state: "succeeded",
+        });
+        const events = await db.select().from(turnEvents).where(eq(turnEvents.turnId, turn.id));
+        const reports = events.filter((event) => event.type.startsWith("acceptance."));
+        expect(reports).toHaveLength(expectedType ? 1 : 0);
+        if (expectedType)
+          expect(reports[0]).toMatchObject({
+            orgId,
+            projectId,
+            storyId: started.story.id,
+            turnId: turn.id,
+            type: expectedType,
+          });
+        if (expectedType === "acceptance.review_reported") {
+          expect(reports[0]?.data).toEqual({
+            ...report,
+            criteria: [
+              { ...report.criteria[0], evidence: "Refreshed with [REDACTED]; bookmark remained." },
+              report.criteria[1],
+            ],
+          });
+        }
+        const activity = await storiesService.turnActivity(
+          orgId,
+          projectId,
+          started.story.id,
+          turn.id,
+        );
+        const projected = activity.items.filter((item) => item.type.startsWith("acceptance."));
+        expect(projected).toHaveLength(expectedType ? 1 : 0);
+        if (expectedType === "acceptance.review_reported") {
+          expect(projected[0]?.text).toContain("AC1 — met: Bookmarks persist after refresh.");
+          expect(projected[0]?.text).toContain("AC2 — unmet: Save is keyboard accessible.");
+          const stored = reports[0];
+          if (!stored) throw new Error("expected stored acceptance report");
+          expect(
+            (
+              await storiesService.turnEvent(
+                orgId,
+                projectId,
+                started.story.id,
+                turn.id,
+                stored.seq,
+              )
+            ).data,
+          ).toEqual(stored.data);
+          await expect(
+            storiesService.turnActivity(newId("org"), projectId, started.story.id, turn.id),
+          ).rejects.toMatchObject({ code: "turn_not_found" });
+          await expect(
+            storiesService.turnEvent(orgId, newId("proj"), started.story.id, turn.id, stored.seq),
+          ).rejects.toMatchObject({ code: "turn_not_found" });
+        }
+        expect(JSON.stringify(reports)).not.toContain("project-secret");
+        expect(events.some((event) => event.type === "turn.succeeded")).toBe(true);
+        expect((await db.select().from(turns).where(eq(turns.id, turn.id)))[0]?.state).toBe(
+          "succeeded",
+        );
+      }
+    } finally {
+      engine.outputOverride = undefined;
+      engine.progressOverride = [];
+    }
   });
 
   it("blocks an exhausted project budget before invoking the agent engine", async () => {

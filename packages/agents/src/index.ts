@@ -306,3 +306,11 @@ export function findAgent(manifests: AgentManifest[], name: string): AgentManife
 export function triggerIdentity(trigger: AgentTrigger): string {
   return "name" in trigger ? `${trigger.type}:${trigger.name}` : trigger.type;
 }
+
+export {
+  ACCEPTANCE_REVIEW_MAX_CHARS,
+  type AcceptanceReview,
+  type AcceptanceReviewResult,
+  AcceptanceReviewSchema,
+  parseAcceptanceReview,
+} from "./acceptance-review.js";

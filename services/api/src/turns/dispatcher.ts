@@ -19,6 +19,7 @@ import type {
   ProjectManifestSource,
 } from "../workspaces/project-environment.js";
 import type { WorkspaceLocator } from "../workspaces/runtime.js";
+import { acceptanceReviewEvent } from "./acceptance-review.js";
 import type { AgentEngineRegistry, AgentTurnResult } from "./engines.js";
 import { AgentEngineError } from "./engines.js";
 import { appendTurnEvent } from "./events.js";
@@ -245,6 +246,11 @@ export class TurnDispatcher {
         });
       }
       const outcome = agentOutcome(result.output);
+      const acceptanceEvent = acceptanceReviewEvent(outcome.output, secrets);
+      if (acceptanceEvent) {
+        // Already bounded and redacted; generic clipping would destroy the typed report.
+        await appendTurnEvent(this.db, { ...eventBase, ...acceptanceEvent });
+      }
       await this.costs.record({
         orgId: input.orgId,
         projectId: input.projectId,

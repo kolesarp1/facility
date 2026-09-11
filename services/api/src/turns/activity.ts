@@ -1,3 +1,5 @@
+import { AcceptanceReviewSchema } from "@facility/agents";
+
 /**
  * Readable projection of a stored turn event. The raw event stays available on
  * its own endpoint; this projection is what conversation and timeline surfaces
@@ -79,6 +81,26 @@ function describe(
     };
   }
   switch (type) {
+    case "acceptance.review_reported": {
+      const report = AcceptanceReviewSchema.safeParse(data);
+      if (!report.success) {
+        return {
+          kind: "error",
+          title: "Invalid acceptance review",
+          text: "Stored report does not match the acceptance review schema.",
+        };
+      }
+      return {
+        kind: "result",
+        title: "Acceptance review (agent-reported)",
+        text: report.data.criteria
+          .map((item) => `${item.id} — ${item.status}: ${item.criterion}\n${item.evidence}`)
+          .join("\n\n"),
+      };
+    }
+    case "acceptance.review_invalid":
+      return { kind: "error", title: "Invalid acceptance review", text: text(data.reason) };
+
     case "turn.started":
       return { kind: "lifecycle", title: "Run started", text: null };
     case "turn.succeeded":
