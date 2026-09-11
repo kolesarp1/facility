@@ -2,6 +2,8 @@
 
 Status: proposed; implementation has not started. Base: `a6fd215b449cbcf5860edcd94cbea21c7808063a`. Branch: `feat/story-acceptance`.
 
+A [typed phase example](story-acceptance.phase.ts) maps this proposal into pending tasks, planned checks and criterion IDs. It is a portable backlog-only example compatible with Roadmap 0.41.2, not a Roadmap installation or implementation of this feature. Its `extensions.facilityPlan` metadata is illustrative; the contract below remains authoritative.
+
 ## Outcome and agreed scope
 
 A maintainer records original acceptance criteria once. Each reviewer turn reports a typed result for every criterion against the actual revision it inspected. Facility presents acceptance independently of GitHub delivery and passes unresolved criteria to the existing reviewer/repair agents.
@@ -94,5 +96,5 @@ During implementation, use existing package commands with exact affected files, 
 - Existing UI: `apps/web/app/(app)/projects/[projectId]/stories/[number]/page.tsx`; SDK types/client are under `packages/sdk/src/`.
 - [Upstream #306](https://github.com/theam/facility/issues/306) documents the queued-review transcript omission. Structured baseline/results must not depend on that transcript path. [#286](https://github.com/theam/facility/issues/286) addresses post-merge outcome durability in an older architecture, not this proposed record; do not reuse its obsolete source paths.
 - `CONTRIBUTING.md` requires an upstream issue before implementing behavior-changing work. Prepare a public product-only issue from this plan; do not post the owner's private workflow or company context. No upstream issue or PR has been posted in this planning step.
-- Fork target: authenticated personal account `kolesarp1`, expected `kolesarp1/facility`. GitHub's current token rejects fork creation with HTTP 403; the fork does not exist from the checks performed. Resolve fork capability before pushing. The local branch and plan can be prepared independently.
+- Fork: `kolesarp1/facility`; branch `feat/story-acceptance` is pushed there for review. No upstream issue or pull request has been posted.
 - Independent plan review: initial review identified option-loss during agent edits, atomic completion/report disposition, and the need to exercise the actual GitHub review trigger. The plan incorporates all three; the independent focused recheck returned clean. Product implementation and final verification: not started.
